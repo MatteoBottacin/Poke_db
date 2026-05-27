@@ -27,24 +27,29 @@ class _AggiungiScreenState extends State<AggiungiScreen> {
   }
 
   void _carica() async {
-    // cerca nel db locale
     final locale = await DBHelper.getAll("pokemon");
     if (locale.isNotEmpty) {
       setState(() { _pokemon = locale; _filtrati = locale; });
     } else {
-      // se vuoto scarica dal server
       final res = await http.get(Uri.parse("$BASE_URL/pokemon.php"));
       final List data = jsonDecode(res.body);
+      List<Map<String, dynamic>> lista = [];
       for (var p in data) {
-        await DBHelper.insert("pokemon", p);
+        final parts = (p["url"] as String).split("/");
+        final pokemonId = int.parse(parts[parts.length - 2]);
+        final item = {"id": pokemonId, "nome": p["name"], "url": p["url"]};
+        await DBHelper.insert("pokemon", item);
+        lista.add(item);
       }
-      setState(() { _pokemon = data.cast<Map<String, dynamic>>(); _filtrati = _pokemon; });
+      setState(() { _pokemon = lista; _filtrati = lista; });
     }
   }
 
   void _cerca(String q) {
     setState(() {
-      _filtrati = _pokemon.where((p) => p["nome"].toString().contains(q.toLowerCase())).toList();
+      _filtrati = _pokemon
+          .where((p) => p["nome"].toString().toLowerCase().contains(q.toLowerCase()))
+          .toList();
     });
   }
 
@@ -53,8 +58,8 @@ class _AggiungiScreenState extends State<AggiungiScreen> {
     final body = {
       "user_id":      widget.userId,
       "pokemon_id":   _selezionato!["id"],
-      "soprannome":   _soprannome.text,
-      "livello":      int.tryParse(_livello.text) ?? 1,
+      "soprannome":   _soprannome.text.trim(),
+      "livello":      int.tryParse(_livello.text.trim()) ?? 1,
       "data_cattura": DateTime.now().toIso8601String().substring(0, 10),
     };
     try {
@@ -68,7 +73,6 @@ class _AggiungiScreenState extends State<AggiungiScreen> {
         await DBHelper.insert("catturati", {...body, "id": risposta["id"]});
       }
     } catch (_) {
-      // offline: salva solo in locale
       await DBHelper.insert("catturati", {...body, "id": DateTime.now().millisecondsSinceEpoch});
     }
     Navigator.pop(context);
@@ -78,14 +82,20 @@ class _AggiungiScreenState extends State<AggiungiScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text("Aggiungi Catturato")),
-      body: Column(
+      body: _pokemon.isEmpty
+          ? Center(child: CircularProgressIndicator())
+          : Column(
         children: [
           Padding(
             padding: EdgeInsets.all(10),
             child: TextField(
               controller: _search,
               onChanged: _cerca,
-              decoration: InputDecoration(labelText: "Cerca Pokémon", border: OutlineInputBorder()),
+              decoration: InputDecoration(
+                labelText: "Cerca Pokémon",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.search),
+              ),
             ),
           ),
           if (_selezionato != null) ...[
@@ -94,8 +104,15 @@ class _AggiungiScreenState extends State<AggiungiScreen> {
               child: Column(
                 children: [
                   Text("Selezionato: ${_selezionato!["nome"]}", style: TextStyle(fontWeight: FontWeight.bold)),
-                  TextField(controller: _soprannome, decoration: InputDecoration(labelText: "Soprannome")),
-                  TextField(controller: _livello, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: "Livello")),
+                  TextField(
+                    controller: _soprannome,
+                    decoration: InputDecoration(labelText: "Soprannome (facoltativo)"),
+                  ),
+                  TextField(
+                    controller: _livello,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(labelText: "Livello"),
+                  ),
                   ElevatedButton(onPressed: _salva, child: Text("Aggiungi")),
                 ],
               ),
@@ -113,8 +130,15 @@ class _AggiungiScreenState extends State<AggiungiScreen> {
                     errorBuilder: (_, __, ___) => Icon(Icons.catching_pokemon),
                   ),
                   title: Text(p["nome"]),
-                  onTap: () => setState(() => _selezionato = p),
+                  subtitle: Text("#${p["id"]}"),
                   selected: _selezionato?["id"] == p["id"],
+                  onTap: () {
+                    setState(() {
+                      _selezionato = p;
+                      _soprannome.clear();
+                      _livello.text = "1";
+                    });
+                  },
                 );
               },
             ),
