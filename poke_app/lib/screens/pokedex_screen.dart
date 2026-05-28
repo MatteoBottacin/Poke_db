@@ -1,3 +1,4 @@
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -17,6 +18,7 @@ class PokedexScreen extends StatefulWidget {
 class _PokedexScreenState extends State<PokedexScreen> {
   List<Map<String, dynamic>> _catturati = [];
   bool _loading = true;
+  var isConnected = true;
 
   @override
   void initState() {
@@ -25,9 +27,15 @@ class _PokedexScreenState extends State<PokedexScreen> {
   }
 
   void _carica() async {
+    var result = await Connectivity().checkConnectivity();
+    setState(() {
+      isConnected = result[0] != ConnectivityResult.none;
+    });
+
     // prova dal server
     try {
-      final res = await http.get(Uri.parse("$BASE_URL/catturati.php?user_id=${widget.userId}"));
+      final res = await http
+          .get(Uri.parse("$BASE_URL/catturati.php?user_id=${widget.userId}"));
       if (res.statusCode == 200) {
         final List data = jsonDecode(res.body);
         // salva in cache locale
@@ -37,11 +45,16 @@ class _PokedexScreenState extends State<PokedexScreen> {
       }
     } catch (_) {}
 
+    if (!isConnected) {
+      final locale =
+          await DBHelper.getWhere("catturati", "user_id = ?", [widget.userId]);
+      setState(() {
+        _catturati = locale;
+      });
+    }
     // legge dalla cache locale
-    final locale = await DBHelper.getWhere("catturati", "user_id = ?", [widget.userId]);
     setState(() {
-      _catturati = locale;
-      _loading   = false;
+      _loading = false;
     });
   }
 
@@ -49,15 +62,19 @@ class _PokedexScreenState extends State<PokedexScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text("Pokédex")),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          await Navigator.push(context, MaterialPageRoute(
-            builder: (_) => AggiungiScreen(userId: widget.userId),
-          ));
-          _carica();
-        },
-        child: Icon(Icons.add),
-      ),
+      floatingActionButton: isConnected
+          ? FloatingActionButton(
+              onPressed: () async {
+                await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => AggiungiScreen(userId: widget.userId),
+                    ));
+                _carica();
+              },
+              child: Icon(Icons.add),
+            )
+          : null,
       body: _loading
           ? Center(child: CircularProgressIndicator())
           : _catturati.isEmpty
@@ -70,13 +87,23 @@ class _PokedexScreenState extends State<PokedexScreen> {
                       leading: Image.network(
                         "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${p["pokemon_id"]}.png",
                         width: 50,
-                        errorBuilder: (_, __, ___) => Icon(Icons.catching_pokemon),
+                        errorBuilder: (_, __, ___) =>
+                            Icon(Icons.catching_pokemon),
                       ),
-                      title: Text(p["soprannome"] != null && p["soprannome"] != "" ? p["soprannome"] : "Pokemon #${p["pokemon_id"]}"),
+                      title: Text(
+                          p["soprannome"] != null && p["soprannome"] != ""
+                              ? p["soprannome"]
+                              : "Pokemon #${p["pokemon_id"]}"),
                       subtitle: Text("Livello ${p["livello"]}"),
-                      onTap: () => Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => DettaglioScreen(pokemonId: p["pokemon_id"]),
-                      )),
+                      onTap: () => {
+                        if (isConnected)
+                          Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    DettaglioScreen(pokemonId: p["pokemon_id"]),
+                              ))
+                      },
                     );
                   },
                 ),

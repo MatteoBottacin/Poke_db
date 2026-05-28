@@ -59,7 +59,7 @@ switch($method){
         $data_cattura = $body['data_cattura'];
 
         $stmt = mysqli_prepare($conn, "INSERT INTO pokemon_catturati (user_id, pokemon_id, soprannome, livello, data_cattura) VALUES (?, ?, ?, ?, ?)");
-        mysqli_stmt_bind_param($stmt, "iiisi", $user_id, $pokemon_id, $soprannome, $livello, $data_cattura);
+        mysqli_stmt_bind_param($stmt, "iiiss", $user_id, $pokemon_id, $soprannome, $livello, $data_cattura);
 
         if(mysqli_stmt_execute($stmt)){
             http_response_code(201);

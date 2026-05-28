@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import '../db_helper.dart';
 import 'home_screen.dart';
 
-const String BASE_URL = "http://192.168.1.8/poke-api";
+const String BASE_URL = "http://10.236.86.247/poke-api";
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -12,59 +12,59 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _username  = TextEditingController();
-  final _password  = TextEditingController();
-  final _email     = TextEditingController();
-  bool _isRegister = false;
-  String _msg      = '';
+  var username  = TextEditingController();
+  var password  = TextEditingController();
+  var email     = TextEditingController();
+  bool isRegister = false;
+  String msg      = '';
 
   @override
   void initState() {
     super.initState();
-    _checkSessione();
+    checkSessione();
   }
 
   // se c'è già una sessione salvata vai direttamente alla home
-  void _checkSessione() async {
-    final sessioni = await DBHelper.getAll("sessione");
+  void checkSessione() async {
+    var sessioni = await DBHelper.getAll("sessione");
     if (sessioni.isNotEmpty) {
-      final s = sessioni.last;
+      var s = sessioni.last;
       Navigator.pushReplacement(context, MaterialPageRoute(
         builder: (_) => HomeScreen(userId: s["user_id"], username: s["username"]),
       ));
     }
   }
 
-  void _submit() async {
-    if (_isRegister) {
-      final res = await http.post(
+  void submit() async {
+    if (isRegister) {
+      var res = await http.post(
         Uri.parse("$BASE_URL/utenti.php?action=register"),
         headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"username": _username.text, "password": _password.text, "email": _email.text}),
+        body: jsonEncode({"username": username.text, "password": password.text, "email": email.text}),
       );
       if (res.statusCode == 201) {
-        setState(() { _isRegister = false; _msg = "Registrazione ok! Ora fai il login."; });
+        setState(() { isRegister = false; msg = "Registrazione ok! Ora fai il login."; });
       } else {
-        setState(() { _msg = "Errore: ${res.statusCode} - ${res.body}"; });
+        setState(() { msg = "Errore: ${res.statusCode} - ${res.body}"; });
       }
     } else {
-      final res = await http.post(
+      var res = await http.post(
         Uri.parse("$BASE_URL/utenti.php?action=login"),
         headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"username": _username.text, "password": _password.text}),
+        body: jsonEncode({"username": username.text, "password": password.text}),
       );
       if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
+        var data = jsonDecode(res.body);
         await DBHelper.insert("sessione", {
           "user_id":  data["user_id"],
-          "username": _username.text,
+          "username": username.text,
           "token":    data["token"],
         });
         Navigator.pushReplacement(context, MaterialPageRoute(
-          builder: (_) => HomeScreen(userId: data["user_id"], username: _username.text),
+          builder: (_) => HomeScreen(userId: data["user_id"], username: username.text),
         ));
       } else {
-        setState(() { _msg = "Credenziali non valide."; });
+        setState(() { msg = "Credenziali non valide."; });
       }
     }
   }
@@ -72,24 +72,24 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(_isRegister ? "Registrati" : "Login")),
+      appBar: AppBar(title: Text(isRegister ? "Registrati" : "Login")),
       body: Padding(
         padding: EdgeInsets.all(20),
         child: Column(
           children: [
-            TextField(controller: _username, decoration: InputDecoration(labelText: "Username")),
-            if (_isRegister)
-              TextField(controller: _email, decoration: InputDecoration(labelText: "Email")),
-            TextField(controller: _password, obscureText: true, decoration: InputDecoration(labelText: "Password")),
+            TextField(controller: username, decoration: InputDecoration(labelText: "Username")),
+            if (isRegister)
+              TextField(controller: email, decoration: InputDecoration(labelText: "Email")),
+            TextField(controller: password, obscureText: true, decoration: InputDecoration(labelText: "Password")),
             SizedBox(height: 20),
-            if (_msg.isNotEmpty) Text(_msg, style: TextStyle(color: Colors.red)),
+            if (msg.isNotEmpty) Text(msg, style: TextStyle(color: Colors.red)),
             ElevatedButton(
-              onPressed: _submit,
-              child: Text(_isRegister ? "Registrati" : "Login"),
+              onPressed: submit,
+              child: Text(isRegister ? "Registrati" : "Login"),
             ),
             TextButton(
-              onPressed: () => setState(() { _isRegister = !_isRegister; _msg = ''; }),
-              child: Text(_isRegister ? "Hai già un account? Login" : "Nuovo utente? Registrati"),
+              onPressed: () => setState(() { isRegister = !isRegister; msg = ''; }),
+              child: Text(isRegister ? "Hai già un account? Login" : "Nuovo utente? Registrati"),
             ),
           ],
         ),
